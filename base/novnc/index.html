@@ -1,18 +1,267 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>CTF Desktop</title>
-  <script>
-    // Auto-redirect to noVNC with fullscreen-ready settings
-    var params = new URLSearchParams({
-      autoconnect: '1',
-      resize:      'scale',   // scale VNC to browser window on resize
-      quality:     '6',
-      compression: '2',
-      logging:     'warn'
-    });
-    window.location.replace('vnc.html?' + params.toString());
-  </script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>CTF Desktop</title>
+<style>
+  :root{
+    --bg:#05070a; --panel:#0b0f14; --panel2:#0e141b; --line:#16202a;
+    --fg:#c8f7d6; --muted:#5c7387;
+    --neon:#33ff88; --neon-dim:#1d8a4c; --cyan:#38e1ff; --red:#ff5470;
+    --glow:0 0 8px rgba(51,255,136,.55);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg)}
+  body{font:13px/1.5 "Hack","JetBrains Mono",ui-monospace,monospace;color:var(--fg)}
+
+  /* remote desktop canvas host */
+  #screen{position:fixed;inset:0;background:var(--bg)}
+
+  /* subtle scanlines + vignette so idle/black areas read as "terminal", not broken */
+  #screen::after{
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+    background:
+      repeating-linear-gradient(0deg,rgba(0,0,0,.10) 0 1px,transparent 1px 3px),
+      radial-gradient(120% 90% at 50% 40%,transparent 60%,rgba(0,0,0,.45) 100%);
+    mix-blend-mode:multiply;opacity:.35;
+  }
+
+  /* ── left control rail (the "sidebar") ─────────────────────────────── */
+  #rail{
+    position:fixed;top:50%;left:14px;transform:translateY(-50%);z-index:20;
+    display:flex;flex-direction:column;gap:8px;padding:8px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:14px;
+    box-shadow:0 0 0 1px rgba(0,0,0,.4),0 10px 34px rgba(0,0,0,.65);
+    transition:left .28s cubic-bezier(.4,0,.2,1),border-radius .28s,padding .28s;
+  }
+  #rail .tools{
+    display:flex;flex-direction:column;gap:8px;overflow:hidden;
+    max-height:200px;opacity:1;
+    transition:max-height .28s ease,opacity .18s ease,margin-top .28s ease;
+  }
+  /* collapsed → rail shrinks to JUST the chevron, flush to the edge (nothing clips) */
+  body.rail-closed #rail{left:0;border-radius:0 12px 12px 0;border-left:none;padding:6px 5px}
+  body.rail-closed #rail .tools{max-height:0;opacity:0;margin-top:-8px}
+  #toggle svg{transition:transform .28s ease}
+  body.rail-closed #toggle svg{transform:rotate(180deg)}
+
+  .btn{
+    position:relative;width:40px;height:40px;display:grid;place-items:center;
+    background:#070b10;border:1px solid var(--line);border-radius:9px;
+    color:var(--muted);cursor:pointer;transition:.15s;
+  }
+  .btn:hover{color:var(--neon);border-color:var(--neon-dim);box-shadow:var(--glow)}
+  .btn.active{color:var(--neon);border-color:var(--neon);box-shadow:var(--glow)}
+  .btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;
+           stroke-linecap:round;stroke-linejoin:round}
+  .btn[data-tip]:hover::after{
+    content:attr(data-tip);position:absolute;left:52px;top:50%;
+    transform:translateY(-50%);white-space:nowrap;
+    background:#070b10;border:1px solid var(--neon-dim);border-radius:6px;
+    padding:4px 8px;color:var(--fg);font-size:11px;box-shadow:var(--glow);z-index:30;
+  }
+
+  /* ── clipboard flyout ──────────────────────────────────────────────── */
+  #clip{
+    position:fixed;left:86px;top:50%;transform:translateY(-50%);z-index:21;
+    width:300px;max-width:calc(100vw - 100px);
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--neon-dim);border-radius:12px;padding:12px;
+    box-shadow:0 0 0 1px rgba(0,0,0,.4),0 12px 40px rgba(0,0,0,.7),var(--glow);
+    display:none;
+  }
+  #clip.open{display:block}
+  #clip h3{margin:0 0 8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+           color:var(--neon);display:flex;align-items:center;gap:6px}
+  #clip h3 .x{margin-left:auto;cursor:pointer;color:var(--muted)}
+  #clip h3 .x:hover{color:var(--red)}
+  #clip p.hint{margin:0 0 8px;color:var(--muted);font-size:11px}
+  #clip textarea{
+    width:100%;height:120px;resize:vertical;
+    background:#04070a;border:1px solid var(--line);border-radius:8px;
+    color:var(--fg);font:12px/1.5 "Hack",monospace;padding:8px;
+  }
+  #clip textarea:focus{outline:none;border-color:var(--neon-dim);box-shadow:var(--glow)}
+  #clip .row{display:flex;gap:8px;margin-top:8px}
+  #clip button{
+    flex:1;padding:8px;border-radius:8px;cursor:pointer;font:600 12px "Hack",monospace;
+    background:#04070a;border:1px solid var(--line);color:var(--fg);transition:.15s;
+  }
+  #clip button:hover{border-color:var(--neon);color:var(--neon);box-shadow:var(--glow)}
+  #clip button.primary{background:rgba(51,255,136,.08);border-color:var(--neon-dim);color:var(--neon)}
+
+  /* ── connection overlay ────────────────────────────────────────────── */
+  #overlay{
+    position:fixed;inset:0;z-index:40;display:grid;place-items:center;
+    background:radial-gradient(80% 60% at 50% 45%,#0a0f14 0%,var(--bg) 70%);
+    transition:opacity .3s;
+  }
+  #overlay.gone{opacity:0;pointer-events:none}
+  .card{text-align:center;max-width:420px;padding:28px}
+  .logo{
+    font-size:34px;letter-spacing:.3em;color:var(--neon);text-shadow:var(--glow);
+    margin-bottom:6px;
+  }
+  .cursor{display:inline-block;width:.6em;background:var(--neon);
+          animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  #ov-msg{color:var(--muted);margin:10px 0 18px;min-height:1.4em;font-size:12px}
+  #ov-msg b{color:var(--cyan)}
+  #reconnect{
+    display:none;margin:0 auto;padding:9px 18px;cursor:pointer;
+    background:rgba(51,255,136,.08);border:1px solid var(--neon-dim);border-radius:8px;
+    color:var(--neon);font:600 13px "Hack",monospace;
+  }
+  #reconnect:hover{box-shadow:var(--glow)}
+  .bar{width:220px;height:3px;margin:0 auto;border-radius:2px;overflow:hidden;
+       background:#0e141b}
+  .bar i{display:block;height:100%;width:40%;border-radius:2px;
+         background:linear-gradient(90deg,transparent,var(--neon),transparent);
+         animation:scan 1.1s linear infinite}
+  @keyframes scan{from{transform:translateX(-120%)}to{transform:translateX(320%)}}
+</style>
 </head>
+<body>
+  <div id="screen"></div>
+
+  <!-- control rail -->
+  <nav id="rail">
+    <div class="btn" id="toggle" data-tip="Hide toolbar">
+      <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+    </div>
+    <div class="tools">
+      <div class="btn" id="btn-clip" data-tip="Clipboard (Ctrl+C / Ctrl+V)">
+        <svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M9 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3"/><path d="M8 12h8M8 16h5"/></svg>
+      </div>
+      <div class="btn" id="btn-full" data-tip="Fullscreen">
+        <svg viewBox="0 0 24 24"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/></svg>
+      </div>
+    </div>
+  </nav>
+
+  <!-- clipboard flyout -->
+  <section id="clip">
+    <h3>▚ clipboard <span class="x" id="clip-x">✕</span></h3>
+    <p class="hint">Text here syncs with the workspace clipboard. Edit &amp; <b>Send</b> to paste inside, or copy from here to your machine.</p>
+    <textarea id="clip-text" spellcheck="false" placeholder="clipboard is empty"></textarea>
+    <div class="row">
+      <button id="clip-send" class="primary">▶ Send to workspace</button>
+      <button id="clip-clear">clear</button>
+    </div>
+  </section>
+
+  <!-- connect / reconnect overlay -->
+  <div id="overlay">
+    <div class="card">
+      <div class="logo">CTF&nbsp;SCHOOL<span class="cursor">&nbsp;</span></div>
+      <div id="ov-msg">booting workspace<b> …</b></div>
+      <div class="bar" id="ov-bar"><i></i></div>
+      <button id="reconnect">⟳ reconnect</button>
+    </div>
+  </div>
+
+<script type="module">
+  import RFB from './core/rfb.js';
+
+  const $ = (s) => document.querySelector(s);
+  const overlay  = $('#overlay');
+  const ovMsg    = $('#ov-msg');
+  const ovBar    = $('#ov-bar');
+  const reBtn    = $('#reconnect');
+  const clipText = $('#clip-text');
+
+  // WebSocket endpoint served by websockify (same origin / behind the guard proxy).
+  function wsURL(){
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const base  = location.pathname.replace(/[^/]*$/, '');   // strip index.html
+    const path  = new URLSearchParams(location.search).get('path') || 'websockify';
+    return `${proto}://${location.host}${base}${path}`;
+  }
+
+  let rfb = null;
+
+  function showOverlay(msg, {spinner=true, reconnect=false}={}){
+    ovMsg.innerHTML = msg;
+    ovBar.style.display = spinner ? 'block' : 'none';
+    reBtn.style.display = reconnect ? 'inline-block' : 'none';
+    overlay.classList.remove('gone');
+  }
+  function hideOverlay(){ overlay.classList.add('gone'); }
+
+  function connect(){
+    showOverlay('connecting to workspace<b> …</b>');
+    rfb = new RFB($('#screen'), wsURL(), {});
+    rfb.scaleViewport   = true;    // scale remote to the browser window
+    rfb.resizeSession   = false;
+    rfb.showDotCursor   = true;
+    rfb.background       = 'var(--bg)';
+    rfb.qualityLevel    = 6;
+    rfb.compressionLevel = 2;
+
+    rfb.addEventListener('connect', () => {
+      hideOverlay(); rfb.focus();
+    });
+    rfb.addEventListener('disconnect', (e) => {
+      showOverlay(
+        e.detail.clean ? 'session closed' : 'connection lost<b> …</b>',
+        { spinner:false, reconnect:true }
+      );
+    });
+    // remote clipboard → mirror into the flyout (and the browser clipboard if allowed)
+    rfb.addEventListener('clipboard', (e) => {
+      clipText.value = e.detail.text;
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(e.detail.text).catch(()=>{});
+    });
+  }
+
+  reBtn.addEventListener('click', connect);
+
+  // ── rail: collapse to a flush chevron / expand ───────────────────────
+  const toggle = $('#toggle');
+  toggle.addEventListener('click', () => {
+    const closed = document.body.classList.toggle('rail-closed');
+    toggle.dataset.tip = closed ? 'Show toolbar' : 'Hide toolbar';
+    if (closed) toggleClip(false);   // don't leave the clipboard flyout orphaned
+  });
+
+  // ── fullscreen ───────────────────────────────────────────────────────
+  const btnFull = $('#btn-full');
+  function fsElement(){ return document.fullscreenElement || document.webkitFullscreenElement; }
+  btnFull.addEventListener('click', () => {
+    if (fsElement()){
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      const el = document.documentElement;
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    }
+  });
+  document.addEventListener('fullscreenchange', () =>
+    btnFull.classList.toggle('active', !!fsElement()));
+
+  // ── clipboard flyout ─────────────────────────────────────────────────
+  const clip = $('#clip'), btnClip = $('#btn-clip');
+  function toggleClip(open){
+    const show = open ?? !clip.classList.contains('open');
+    clip.classList.toggle('open', show);
+    btnClip.classList.toggle('active', show);
+    if (show){
+      // best-effort pull from the browser clipboard so "paste" just works
+      navigator.clipboard?.readText?.().then(t => { if (t) clipText.value = t; }).catch(()=>{});
+      clipText.focus();
+    }
+  }
+  btnClip.addEventListener('click', () => toggleClip());
+  $('#clip-x').addEventListener('click', () => toggleClip(false));
+  $('#clip-clear').addEventListener('click', () => { clipText.value=''; clipText.focus(); });
+  $('#clip-send').addEventListener('click', () => {
+    if (rfb) rfb.clipboardPasteFrom(clipText.value);
+    toggleClip(false);
+    rfb?.focus();
+  });
+
+  connect();
+</script>
+</body>
 </html>

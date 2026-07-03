@@ -9,6 +9,7 @@ vpc/
   coding/    base + OpenVSCode Server (VS Code, offline) + Python  — coding challenges
   datasci/   base + Python data/ML + Jupyter + stego/pickle      — avatarius/members/trojanml
   pentest/   base + nmap / radare2 / pwntools                    — pwn/recon
+  terminal/  STANDALONE console-only (ttyd, no desktop)          — text-only challenges
   Makefile
 ```
 
@@ -34,7 +35,23 @@ make images                    # print the fully-qualified pinned image refs
 - **Firefox is the default browser** — `update-alternatives` + `mimeapps.list`/`helpers.rc`, so links never prompt for an app.
 - **Competition start page** — a local, offline page (`startpage/index.html`) pinned as the Firefox homepage via an enterprise `policies.json` (Mozilla new-tab/telemetry/first-run disabled).
 - **Desktop launchers** — `Firefox`, `Terminal`, `Files` appear on the desktop. Each variant drops its own launcher into `Desktop/` (Theia, Jupyter, …) so added apps show up automatically.
-- Dark Arc theme, Hack font, generated wallpaper, auto-connect noVNC.
+- Dark Arc theme, Hack font, generated wallpaper.
+- **Custom noVNC client** (`base/novnc/index.html`) — a from-scratch hacking-themed UI
+  built on noVNC's `core/rfb.js` (v1.3.0) instead of the stock control bar. Auto-connects,
+  scales to the window, and exposes a slim left rail with just **two** controls:
+  **Clipboard** (a flyout that mirrors the workspace clipboard both ways) and
+  **Fullscreen**. No settings/power/keyboard panels.
+
+## The `terminal` variant (console-only)
+
+A **standalone** image (`FROM debian:bookworm-slim`, *not* `base`) for text-only
+challenges where a full desktop is overkill. It serves an interactive `bash` in the
+browser via **ttyd** (xterm.js front-end, PTY back-end) on port **7681**, themed to
+match the noVNC client (neon-green on near-black, Hack font). ttyd isn't packaged in
+bookworm, so the official static binary is fetched at build time (per-arch) — offline at
+runtime like the rest. The shell runs as the unprivileged `ctf` user, so the root-owned
+`/flag` stays unreadable — same trust model as the desktop. Point a challenge at it with
+`spec.workspace.image: …-terminal:<version>` and `spec.workspace.port: 7681`.
 
 ## Adding a variant
 

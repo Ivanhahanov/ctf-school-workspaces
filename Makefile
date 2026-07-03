@@ -39,9 +39,12 @@ BUILD := docker build $(if $(PLATFORM),--platform $(PLATFORM),)
 img    = $(REPO)-$(1):$(2)
 latest = $(REPO)-$(1):latest
 
+# base-derived variants (built --build-arg BASE=…)
 VARIANTS := coding datasci pentest
+# standalone images (their own FROM, NOT built on base)
+STANDALONE := terminal
 
-.PHONY: help images all base $(VARIANTS) load push buildx-ensure deploy-local deploy-prod
+.PHONY: help images all base $(VARIANTS) $(STANDALONE) load push buildx-ensure deploy-local deploy-prod
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -53,6 +56,7 @@ images: ## Print the fully-qualified image refs (pinned versions)
 	@echo "coding  -> $(call img,coding,$(CODING_VERSION))"
 	@echo "datasci -> $(call img,datasci,$(DATASCI_VERSION))"
 	@echo "pentest -> $(call img,pentest,$(PENTEST_VERSION))"
+	@echo "terminal-> $(call img,terminal,$(TERMINAL_VERSION))"
 
 base: ## Build the base workspace image
 	$(BUILD) -t $(call img,base,$(BASE_VERSION)) -t $(call latest,base) base/
@@ -70,13 +74,17 @@ pentest: base ## Build the pentest image
 	$(BUILD) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
 	  -t $(call img,pentest,$(PENTEST_VERSION)) -t $(call latest,pentest) pentest/
 
-all: base $(VARIANTS) ## Build base + every variant
+terminal: ## Build the console-only image (standalone ttyd, no desktop)
+	$(BUILD) -t $(call img,terminal,$(TERMINAL_VERSION)) -t $(call latest,terminal) terminal/
+
+all: base $(VARIANTS) $(STANDALONE) ## Build base + every variant
 
 load: ## kind-load the pinned base + all variants into the cluster
 	@kind load docker-image "$(call img,base,$(BASE_VERSION))"       --name "$(KIND_CLUSTER)"
 	@kind load docker-image "$(call img,coding,$(CODING_VERSION))"   --name "$(KIND_CLUSTER)"
 	@kind load docker-image "$(call img,datasci,$(DATASCI_VERSION))" --name "$(KIND_CLUSTER)"
 	@kind load docker-image "$(call img,pentest,$(PENTEST_VERSION))" --name "$(KIND_CLUSTER)"
+	@kind load docker-image "$(call img,terminal,$(TERMINAL_VERSION))" --name "$(KIND_CLUSTER)"
 
 # CI builds MULTI-ARCH so prod (amd64) and the local demo/Mac (arm64) both run natively.
 PLATFORMS ?= linux/amd64,linux/arm64
@@ -98,6 +106,8 @@ push: buildx-ensure ## Push multi-arch base + variants to the registry
 	  -t $(call img,datasci,$(DATASCI_VERSION)) -t $(call latest,datasci) --push datasci/
 	docker buildx build --platform $(PLATFORMS) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
 	  -t $(call img,pentest,$(PENTEST_VERSION)) -t $(call latest,pentest) --push pentest/
+	docker buildx build --platform $(PLATFORMS) \
+	  -t $(call img,terminal,$(TERMINAL_VERSION)) -t $(call latest,terminal) --push terminal/
 
 deploy-local: all load   ## Dev: build all + kind load
 deploy-prod: push        ## Prod: multi-arch build + push to registry
