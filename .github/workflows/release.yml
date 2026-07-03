@@ -1,8 +1,19 @@
-# Build + push the workspace desktop images (base + coding/datasci/pentest), multi-arch,
-# and cosign-sign them. Reuses the repo Makefile's `push` target (buildx multi-arch,
-# base first then variants FROM it). Prod pulls amd64, the local demo pulls arm64.
+# Build + push the workspace desktop images (base + coding/datasci/pentest/terminal),
+# multi-arch, and cosign-sign them — OPTIMIZED for speed:
 #
-# NOTE: vpc must be its OWN GitHub repo for this to run. Secrets/vars required:
+#   1. PATH FILTER (job `plan`) → only rebuild images whose files changed. A commit to
+#      `base/**` rebuilds base + everything FROM it; a commit to `pentest/**` rebuilds
+#      only pentest. Tags / manual runs / Makefile+versions changes rebuild everything.
+#   2. NATIVE per-arch runners (NO QEMU): each arch builds on its own runner
+#      (amd64 → ubuntu-latest, arm64 → ubuntu-24.04-arm) via `make ci-arch`, then
+#      `make ci-manifest` stitches the arch tags into the real multi-arch tag.
+#   3. REGISTRY LAYER CACHE (per image, per arch) so unchanged layers are reused.
+#
+# Ordering: base-derived variants (coding/datasci/pentest) `FROM base:<ver>`, so the
+# base multi-arch manifest must be pushed BEFORE the variants build. base and terminal
+# are independent roots (built FROM scratch).
+#
+# NOTE: vpc must be its OWN GitHub repo. Secrets/vars required:
 #   secrets.DOCKERHUB_USERNAME, secrets.DOCKERHUB_TOKEN
 #   vars.DOCKERHUB_ORG   (optional; defaults to "explabs")
 name: release
@@ -19,33 +30,186 @@ permissions:
 
 env:
   ORG: ${{ vars.DOCKERHUB_ORG || 'explabs' }}
+  REGISTRY_ARG: docker.io/${{ vars.DOCKERHUB_ORG || 'explabs' }}
 
 jobs:
-  release:
+  # ── 1) Decide what to (re)build ──────────────────────────────────────────────
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      roots:    ${{ steps.decide.outputs.roots }}     # subset of ["base","terminal"]
+      variants: ${{ steps.decide.outputs.variants }}  # subset of ["coding","datasci","pentest"]
+      built:    ${{ steps.decide.outputs.built }}      # union of the two (for signing)
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # paths-filter needs history to diff against the previous commit
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            base:
+              - 'base/**'
+            coding:
+              - 'coding/**'
+            datasci:
+              - 'datasci/**'
+            pentest:
+              - 'pentest/**'
+            terminal:
+              - 'terminal/**'
+            shared:
+              - 'Makefile'
+              - 'versions.mk'
+              - '.github/workflows/release.yml'
 
+      - id: decide
+        env:
+          F_BASE:     ${{ steps.f.outputs.base }}
+          F_CODING:   ${{ steps.f.outputs.coding }}
+          F_DATASCI:  ${{ steps.f.outputs.datasci }}
+          F_PENTEST:  ${{ steps.f.outputs.pentest }}
+          F_TERMINAL: ${{ steps.f.outputs.terminal }}
+          F_SHARED:   ${{ steps.f.outputs.shared }}
+        run: |
+          set -euo pipefail
+
+          # Force a full rebuild on tags, manual runs, or shared-file (Makefile/versions) changes.
+          force=false
+          [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && force=true
+          case "${GITHUB_REF}" in refs/tags/*) force=true;; esac
+          [ "${F_SHARED}" = "true" ] && force=true
+
+          on()  { { [ "$force" = true ] || [ "$1" = "true" ]; } && echo true || echo false; }
+          base=$(on "$F_BASE")
+          terminal=$(on "$F_TERMINAL")
+          # Variants also rebuild when base is rebuilt (they are FROM base:<ver>).
+          dep() { { [ "$force" = true ] || [ "$base" = true ] || [ "$1" = "true" ]; } && echo true || echo false; }
+          coding=$(dep "$F_CODING")
+          datasci=$(dep "$F_DATASCI")
+          pentest=$(dep "$F_PENTEST")
+
+          # arr name=flag … → JSON array of the names whose flag is true (empties dropped)
+          arr() {
+            local out=()
+            for pair in "$@"; do [ "${pair#*=}" = true ] && out+=("${pair%%=*}"); done
+            if [ "${#out[@]}" -eq 0 ]; then echo '[]'; else printf '%s\n' "${out[@]}" | jq -Rc . | jq -sc .; fi
+          }
+
+          {
+            echo "roots=$(arr    base=$base terminal=$terminal)"
+            echo "variants=$(arr coding=$coding datasci=$datasci pentest=$pentest)"
+            echo "built=$(arr    base=$base terminal=$terminal coding=$coding datasci=$datasci pentest=$pentest)"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  # ── 2) Roots (base, terminal): native per-arch build ─────────────────────────
+  roots:
+    needs: plan
+    if: needs.plan.outputs.roots != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.roots) }}
+        target:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@v4
       - uses: docker/login-action@v3
         with:
           registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build ${{ matrix.image }} (${{ matrix.target.arch }})
+        run: make ci-arch IMAGE=${{ matrix.image }} ARCH=${{ matrix.target.arch }} REGISTRY=${REGISTRY_ARG}
 
-      # Multi-arch build + push of base + all variants (the Makefile pushes base first,
-      # then builds the variants FROM the pushed base for each platform).
-      - name: Build + push desktop images
-        run: make push REGISTRY=docker.io/${ORG} PLATFORMS=linux/amd64,linux/arm64
+  roots-manifest:
+    needs: [plan, roots]
+    if: needs.plan.outputs.roots != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.roots) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Merge manifest for ${{ matrix.image }}
+        run: make ci-manifest IMAGE=${{ matrix.image }} REGISTRY=${REGISTRY_ARG}
 
+  # ── 3) Variants (coding/datasci/pentest): native per-arch, AFTER base manifest ──
+  variants:
+    needs: [plan, roots-manifest]
+    # Run when there are variants to build, as long as the base manifest either
+    # succeeded (base rebuilt) or was skipped (base unchanged → reuse existing base:<ver>).
+    if: >-
+      always() &&
+      needs.plan.result == 'success' &&
+      needs.plan.outputs.variants != '[]' &&
+      needs.roots-manifest.result != 'failure' &&
+      needs.roots-manifest.result != 'cancelled'
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.variants) }}
+        target:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.target.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build ${{ matrix.image }} (${{ matrix.target.arch }})
+        run: make ci-arch IMAGE=${{ matrix.image }} ARCH=${{ matrix.target.arch }} REGISTRY=${REGISTRY_ARG}
+
+  variants-manifest:
+    needs: [plan, variants]
+    if: always() && needs.plan.outputs.variants != '[]' && needs.variants.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.variants) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Merge manifest for ${{ matrix.image }}
+        run: make ci-manifest IMAGE=${{ matrix.image }} REGISTRY=${REGISTRY_ARG}
+
+  # ── 4) Sign every image that was (re)built this run (keyless) ─────────────────
+  sign:
+    needs: [plan, roots-manifest, variants-manifest]
+    if: >-
+      always() &&
+      needs.plan.outputs.built != '[]' &&
+      needs.roots-manifest.result != 'failure' && needs.roots-manifest.result != 'cancelled' &&
+      needs.variants-manifest.result != 'failure' && needs.variants-manifest.result != 'cancelled'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.plan.outputs.built) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - uses: sigstore/cosign-installer@v3
-
-      - name: Sign desktop images (keyless)
-        run: |
-          set -euo pipefail
-          make -s images REGISTRY=docker.io/${ORG} | awk '/-> /{print $NF}' | while read -r ref; do
-            cosign sign --yes "$ref"
-            cosign sign --yes "${ref%:*}:latest"
-          done
+      - name: Sign ${{ matrix.image }}
+        run: make ci-sign IMAGE=${{ matrix.image }} REGISTRY=${REGISTRY_ARG}

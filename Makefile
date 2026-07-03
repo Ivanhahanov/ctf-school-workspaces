@@ -122,5 +122,53 @@ push: buildx-ensure ## Push multi-arch base + variants to the registry
 	  $(call cachefrom,terminal) $(call cacheto,terminal) \
 	  -t $(call img,terminal,$(TERMINAL_VERSION)) -t $(call latest,terminal) --push terminal/
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CI fast path: NATIVE per-arch builds (no QEMU) + selective rebuilds.
+#
+# The `push` target above is a correct-but-slow one-shot multi-arch build (arm64 is
+# EMULATED under QEMU — the ~14 min cost). In CI we instead build each arch on its
+# OWN native runner via `ci-arch` (pushing an arch-suffixed tag), then `ci-manifest`
+# stitches the arch tags into the real multi-arch tag. The workflow only invokes these
+# for images whose files actually changed (path filter), so a typical commit rebuilds
+# one image on two fast native runners instead of five under emulation.
+#
+# Per-image version + build-args, looked up by $(IMAGE). `=` (lazy) so ordering vs
+# OVSCODE_VERSION below doesn't matter.
+VERSION_base     = $(BASE_VERSION)
+VERSION_coding   = $(CODING_VERSION)
+VERSION_datasci  = $(DATASCI_VERSION)
+VERSION_pentest  = $(PENTEST_VERSION)
+VERSION_terminal = $(TERMINAL_VERSION)
+
+BUILD_ARGS_base     =
+BUILD_ARGS_terminal =
+BUILD_ARGS_coding   = --build-arg BASE=$(call img,base,$(BASE_VERSION)) --build-arg OVSCODE_VERSION="$(OVSCODE_VERSION)"
+BUILD_ARGS_datasci  = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_pentest  = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+
+# Arches merged into each multi-arch tag (must match the matrix in release.yml).
+CI_ARCHES ?= amd64 arm64
+
+.PHONY: ci-arch ci-manifest ci-sign
+
+ci-arch: buildx-ensure ## CI: build one IMAGE for one ARCH natively, push an arch-suffixed tag
+	@test -n "$(REGISTRY)" || { echo "REGISTRY is required"; exit 1; }
+	@test -n "$(IMAGE)$(ARCH)" || { echo "IMAGE and ARCH are required"; exit 1; }
+	docker buildx build --platform linux/$(ARCH) $(BUILD_ARGS_$(IMAGE)) \
+	  --cache-from type=registry,ref=$(REPO)-$(IMAGE):buildcache-$(ARCH) \
+	  --cache-to   type=registry,ref=$(REPO)-$(IMAGE):buildcache-$(ARCH),mode=max \
+	  -t $(REPO)-$(IMAGE):$(VERSION_$(IMAGE))-$(ARCH) --push $(IMAGE)/
+
+ci-manifest: ## CI: merge the per-arch tags of IMAGE into its multi-arch version + latest tags
+	@test -n "$(IMAGE)" || { echo "IMAGE is required"; exit 1; }
+	docker buildx imagetools create \
+	  -t $(call img,$(IMAGE),$(VERSION_$(IMAGE))) -t $(call latest,$(IMAGE)) \
+	  $(foreach a,$(CI_ARCHES),$(REPO)-$(IMAGE):$(VERSION_$(IMAGE))-$(a))
+
+ci-sign: ## CI: cosign-sign IMAGE's multi-arch version + latest tags (keyless)
+	@test -n "$(IMAGE)" || { echo "IMAGE is required"; exit 1; }
+	cosign sign --yes $(call img,$(IMAGE),$(VERSION_$(IMAGE)))
+	cosign sign --yes $(call latest,$(IMAGE))
+
 deploy-local: all load   ## Dev: build all + kind load
 deploy-prod: push        ## Prod: multi-arch build + push to registry

@@ -29,6 +29,23 @@ make deploy-prod REGISTRY=ghcr.io/ivanhahanov
 make images                    # print the fully-qualified pinned image refs
 ```
 
+### CI (fast, multi-arch)
+
+`deploy-prod` / `make push` do a correct one-shot multi-arch build, but arm64 is
+**emulated under QEMU** — slow (~14 min for a cold "rebuild all"). The GitHub Actions
+workflow (`.github/workflows/release.yml`) avoids that with three levers:
+
+- **Selective rebuilds** — a path filter builds only the images whose files changed
+  (a `base/**` change rebuilds base + everything `FROM` it; `pentest/**` rebuilds only
+  pentest). Tags, manual runs and `Makefile`/`versions.mk` edits force a full rebuild.
+- **Native per-arch runners (no QEMU)** — each arch builds on its own runner
+  (`ubuntu-latest` + `ubuntu-24.04-arm`) via `make ci-arch IMAGE=… ARCH=…`, then
+  `make ci-manifest IMAGE=…` stitches the arch tags into the real multi-arch tag.
+- **Registry layer cache** — `type=registry` `:buildcache-<arch>` tags per image, so
+  unchanged layers are reused across runs.
+
+These three `ci-*` targets are CI-only; local dev keeps using `make all` / `deploy-local`.
+
 ## What's in `base`
 
 - **Hostname** `workspace` (overridable per-session via `CTF_HOSTNAME`); shell prompt `ctf@workspace:~$`. You work in your home `~`.
