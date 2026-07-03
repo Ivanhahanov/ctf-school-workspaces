@@ -39,6 +39,14 @@ BUILD := docker build $(if $(PLATFORM),--platform $(PLATFORM),)
 img    = $(REPO)-$(1):$(2)
 latest = $(REPO)-$(1):latest
 
+# Registry-backed BUILD LAYER CACHE (buildx `push` only). Each image gets a
+# `:buildcache` tag in its own repo; we read it on every build and rewrite it with
+# mode=max (all intermediate layers). Unchanged layers — above all the slow
+# QEMU-emulated arm64 apt installs — are then reused across CI runs instead of
+# rebuilt, cutting a cold ~14 min "rebuild all" to a few minutes on typical commits.
+cachefrom = --cache-from type=registry,ref=$(REPO)-$(1):buildcache
+cacheto   = --cache-to   type=registry,ref=$(REPO)-$(1):buildcache,mode=max
+
 # base-derived variants (built --build-arg BASE=…)
 VARIANTS := coding datasci pentest
 # standalone images (their own FROM, NOT built on base)
@@ -98,15 +106,20 @@ buildx-ensure:
 push: buildx-ensure ## Push multi-arch base + variants to the registry
 	@test -n "$(REGISTRY)" || { echo "REGISTRY is required for push"; exit 1; }
 	docker buildx build --platform $(PLATFORMS) \
+	  $(call cachefrom,base) $(call cacheto,base) \
 	  -t $(call img,base,$(BASE_VERSION)) -t $(call latest,base) --push base/
 	docker buildx build --platform $(PLATFORMS) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
 	  --build-arg OVSCODE_VERSION="$(OVSCODE_VERSION)" \
+	  $(call cachefrom,coding) $(call cacheto,coding) \
 	  -t $(call img,coding,$(CODING_VERSION)) -t $(call latest,coding) --push coding/
 	docker buildx build --platform $(PLATFORMS) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
+	  $(call cachefrom,datasci) $(call cacheto,datasci) \
 	  -t $(call img,datasci,$(DATASCI_VERSION)) -t $(call latest,datasci) --push datasci/
 	docker buildx build --platform $(PLATFORMS) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
+	  $(call cachefrom,pentest) $(call cacheto,pentest) \
 	  -t $(call img,pentest,$(PENTEST_VERSION)) -t $(call latest,pentest) --push pentest/
 	docker buildx build --platform $(PLATFORMS) \
+	  $(call cachefrom,terminal) $(call cacheto,terminal) \
 	  -t $(call img,terminal,$(TERMINAL_VERSION)) -t $(call latest,terminal) --push terminal/
 
 deploy-local: all load   ## Dev: build all + kind load
