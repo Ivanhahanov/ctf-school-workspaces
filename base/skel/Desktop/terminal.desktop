@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Terminal
+Comment=Open a terminal in your home (~)
+Exec=xfce4-terminal --working-directory=%h
+Icon=utilities-terminal
+Terminal=false
+Categories=System;TerminalEmulator;

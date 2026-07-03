@@ -1,0 +1,5 @@
+#!/bin/bash
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+xrdb -merge ~/.Xresources 2>/dev/null
+exec startxfce4

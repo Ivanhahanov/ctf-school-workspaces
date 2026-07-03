@@ -1,0 +1,22 @@
+{
+  "policies": {
+    "Homepage": {
+      "URL": "file:///usr/share/ctf/startpage/index.html",
+      "Locked": false,
+      "StartPage": "homepage"
+    },
+    "OverrideFirstRunPage": "",
+    "OverridePostUpdatePage": "",
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisableFirefoxAccounts": true,
+    "DisablePocket": true,
+    "DontCheckDefaultBrowser": true,
+    "NoDefaultBookmarks": true,
+    "Preferences": {
+      "browser.newtabpage.enabled": { "Value": false, "Status": "locked" },
+      "browser.aboutConfig.showWarning": { "Value": false, "Status": "default" },
+      "datareporting.policy.firstRunURL": { "Value": "", "Status": "locked" }
+    }
+  }
+}

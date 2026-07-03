@@ -1,0 +1,4 @@
+/* Hide Firefox's own chrome so only the IDE (and the XFCE window title bar with
+   its Minimize/Close buttons) remains — the tab looks like a native app. */
+#TabsToolbar { visibility: collapse !important; }
+#nav-bar     { visibility: collapse !important; }

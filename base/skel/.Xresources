@@ -1,0 +1,15 @@
+URxvt.font:          xft:Hack:pixelsize=13
+URxvt.scrollBar:     false
+URxvt.internalBorder: 10
+URxvt.cursorBlink:   true
+URxvt.background:    #0a0a0a
+URxvt.foreground:    #00ff41
+URxvt.cursorColor:   #00ff41
+URxvt.color0:  #0a0a0a  URxvt.color8:  #333333
+URxvt.color1:  #cc2233  URxvt.color9:  #ff2244
+URxvt.color2:  #00cc33  URxvt.color10: #00ff41
+URxvt.color3:  #aaaa00  URxvt.color11: #ffff44
+URxvt.color4:  #0077cc  URxvt.color12: #00aaff
+URxvt.color5:  #aa00aa  URxvt.color13: #ff44ff
+URxvt.color6:  #00aaaa  URxvt.color14: #00ffff
+URxvt.color7:  #aaaaaa  URxvt.color15: #ffffff

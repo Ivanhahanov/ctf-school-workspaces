@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>CTF Desktop</title>
+  <script>
+    // Auto-redirect to noVNC with fullscreen-ready settings
+    var params = new URLSearchParams({
+      autoconnect: '1',
+      resize:      'scale',   // scale VNC to browser window on resize
+      quality:     '6',
+      compression: '2',
+      logging:     'warn'
+    });
+    window.location.replace('vnc.html?' + params.toString());
+  </script>
+</head>
+</html>

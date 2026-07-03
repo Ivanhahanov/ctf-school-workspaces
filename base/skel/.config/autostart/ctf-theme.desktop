@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=CTF Theme
+Exec=/usr/local/bin/ctf-theme.sh
+Hidden=false
+X-GNOME-Autostart-enabled=true

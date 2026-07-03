@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=VS Code
+Comment=Code editor for the challenge (offline, app window)
+Exec=/usr/local/bin/code-ctf.sh
+Icon=visual-studio-code
+Terminal=false
+Categories=Development;IDE;

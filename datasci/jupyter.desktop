@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Jupyter
+Comment=Notebook for data/ML analysis (offline)
+Exec=/usr/local/bin/jupyter-ctf.sh
+Icon=applications-science
+Terminal=false
+Categories=Development;Science;

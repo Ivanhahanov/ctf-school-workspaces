@@ -1,0 +1,51 @@
+# Build + push the workspace desktop images (base + coding/datasci/pentest), multi-arch,
+# and cosign-sign them. Reuses the repo Makefile's `push` target (buildx multi-arch,
+# base first then variants FROM it). Prod pulls amd64, the local demo pulls arm64.
+#
+# NOTE: vpc must be its OWN GitHub repo for this to run. Secrets/vars required:
+#   secrets.DOCKERHUB_USERNAME, secrets.DOCKERHUB_TOKEN
+#   vars.DOCKERHUB_ORG   (optional; defaults to "explabs")
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # cosign keyless signing
+
+env:
+  ORG: ${{ vars.DOCKERHUB_ORG || 'explabs' }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Multi-arch build + push of base + all variants (the Makefile pushes base first,
+      # then builds the variants FROM the pushed base for each platform).
+      - name: Build + push desktop images
+        run: make push REGISTRY=docker.io/${ORG} PLATFORMS=linux/amd64,linux/arm64
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Sign desktop images (keyless)
+        run: |
+          set -euo pipefail
+          make -s images REGISTRY=docker.io/${ORG} | awk '/-> /{print $NF}' | while read -r ref; do
+            cosign sign --yes "$ref"
+            cosign sign --yes "${ref%:*}:latest"
+          done
