@@ -13,7 +13,7 @@
 #
 #   make base                 # build the base desktop (XFCE + Firefox + noVNC)
 #   make coding               # base + OpenVSCode Server + Python
-#   make datasci              # base + Python data/ML + Jupyter + stego/pickle tools
+#   make datasci              # base + Python data/ML + Jupyter
 #   make pentest              # base + nmap/radare2/pwntools
 #   make all                  # base + every variant
 #   make deploy-local         # build all + `kind load` into the cluster (dev)
@@ -48,7 +48,7 @@ cachefrom = --cache-from type=registry,ref=$(REPO)-$(1):buildcache
 cacheto   = --cache-to   type=registry,ref=$(REPO)-$(1):buildcache,mode=max
 
 # base-derived variants (built --build-arg BASE=…)
-VARIANTS := coding datasci pentest
+VARIANTS := coding datasci pentest avatarius trojanml members agentic
 # standalone images (their own FROM, NOT built on base)
 STANDALONE := terminal
 
@@ -60,11 +60,15 @@ help: ## Show this help
 	@echo; $(MAKE) --no-print-directory images
 
 images: ## Print the fully-qualified image refs (pinned versions)
-	@echo "base    -> $(call img,base,$(BASE_VERSION))"
-	@echo "coding  -> $(call img,coding,$(CODING_VERSION))"
-	@echo "datasci -> $(call img,datasci,$(DATASCI_VERSION))"
-	@echo "pentest -> $(call img,pentest,$(PENTEST_VERSION))"
-	@echo "terminal-> $(call img,terminal,$(TERMINAL_VERSION))"
+	@echo "base      -> $(call img,base,$(BASE_VERSION))"
+	@echo "coding    -> $(call img,coding,$(CODING_VERSION))"
+	@echo "datasci   -> $(call img,datasci,$(DATASCI_VERSION))"
+	@echo "pentest   -> $(call img,pentest,$(PENTEST_VERSION))"
+	@echo "terminal  -> $(call img,terminal,$(TERMINAL_VERSION))"
+	@echo "avatarius -> $(call img,avatarius,$(AVATARIUS_VERSION))"
+	@echo "trojanml  -> $(call img,trojanml,$(TROJANML_VERSION))"
+	@echo "members   -> $(call img,members,$(MEMBERS_VERSION))"
+	@echo "agentic   -> $(call img,agentic,$(AGENTIC_VERSION))"
 
 base: ## Build the base workspace image
 	$(BUILD) -t $(call img,base,$(BASE_VERSION)) -t $(call latest,base) base/
@@ -81,6 +85,22 @@ datasci: base ## Build the data-science image
 pentest: base ## Build the pentest image
 	$(BUILD) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
 	  -t $(call img,pentest,$(PENTEST_VERSION)) -t $(call latest,pentest) pentest/
+
+avatarius: base ## Build the avatarius task workspace
+	$(BUILD) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
+	  -t $(call img,avatarius,$(AVATARIUS_VERSION)) -t $(call latest,avatarius) avatarius/
+
+trojanml: base ## Build the trojanml task workspace
+	$(BUILD) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
+	  -t $(call img,trojanml,$(TROJANML_VERSION)) -t $(call latest,trojanml) trojanml/
+
+members: base ## Build the members task workspace
+	$(BUILD) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
+	  -t $(call img,members,$(MEMBERS_VERSION)) -t $(call latest,members) members/
+
+agentic: base ## Build the agentic task workspace
+	$(BUILD) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
+	  -t $(call img,agentic,$(AGENTIC_VERSION)) -t $(call latest,agentic) agentic/
 
 terminal: ## Build the console-only image (standalone ttyd, no desktop)
 	$(BUILD) -t $(call img,terminal,$(TERMINAL_VERSION)) -t $(call latest,terminal) terminal/
@@ -134,17 +154,25 @@ push: buildx-ensure ## Push multi-arch base + variants to the registry
 #
 # Per-image version + build-args, looked up by $(IMAGE). `=` (lazy) so ordering vs
 # OVSCODE_VERSION below doesn't matter.
-VERSION_base     = $(BASE_VERSION)
-VERSION_coding   = $(CODING_VERSION)
-VERSION_datasci  = $(DATASCI_VERSION)
-VERSION_pentest  = $(PENTEST_VERSION)
-VERSION_terminal = $(TERMINAL_VERSION)
+VERSION_base      = $(BASE_VERSION)
+VERSION_coding    = $(CODING_VERSION)
+VERSION_datasci   = $(DATASCI_VERSION)
+VERSION_pentest   = $(PENTEST_VERSION)
+VERSION_terminal  = $(TERMINAL_VERSION)
+VERSION_avatarius = $(AVATARIUS_VERSION)
+VERSION_trojanml  = $(TROJANML_VERSION)
+VERSION_members   = $(MEMBERS_VERSION)
+VERSION_agentic   = $(AGENTIC_VERSION)
 
-BUILD_ARGS_base     =
-BUILD_ARGS_terminal =
-BUILD_ARGS_coding   = --build-arg BASE=$(call img,base,$(BASE_VERSION)) --build-arg OVSCODE_VERSION="$(OVSCODE_VERSION)"
-BUILD_ARGS_datasci  = --build-arg BASE=$(call img,base,$(BASE_VERSION))
-BUILD_ARGS_pentest  = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_base      =
+BUILD_ARGS_terminal  =
+BUILD_ARGS_coding    = --build-arg BASE=$(call img,base,$(BASE_VERSION)) --build-arg OVSCODE_VERSION="$(OVSCODE_VERSION)"
+BUILD_ARGS_datasci   = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_pentest   = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_avatarius = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_trojanml  = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_members   = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_agentic   = --build-arg BASE=$(call img,base,$(BASE_VERSION))
 
 # Arches merged into each multi-arch tag (must match the matrix in release.yml).
 CI_ARCHES ?= amd64 arm64

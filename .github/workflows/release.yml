@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       roots:    ${{ steps.decide.outputs.roots }}     # subset of ["base","terminal"]
-      variants: ${{ steps.decide.outputs.variants }}  # subset of ["coding","datasci","pentest"]
+      variants: ${{ steps.decide.outputs.variants }}  # subset of ["coding","datasci","pentest","avatarius","trojanml","members","agentic"]
       built:    ${{ steps.decide.outputs.built }}      # union of the two (for signing)
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +59,14 @@ jobs:
               - 'pentest/**'
             terminal:
               - 'terminal/**'
+            avatarius:
+              - 'avatarius/**'
+            trojanml:
+              - 'trojanml/**'
+            members:
+              - 'members/**'
+            agentic:
+              - 'agentic/**'
             shared:
               - 'Makefile'
               - 'versions.mk'
@@ -66,12 +74,16 @@ jobs:
 
       - id: decide
         env:
-          F_BASE:     ${{ steps.f.outputs.base }}
-          F_CODING:   ${{ steps.f.outputs.coding }}
-          F_DATASCI:  ${{ steps.f.outputs.datasci }}
-          F_PENTEST:  ${{ steps.f.outputs.pentest }}
-          F_TERMINAL: ${{ steps.f.outputs.terminal }}
-          F_SHARED:   ${{ steps.f.outputs.shared }}
+          F_BASE:      ${{ steps.f.outputs.base }}
+          F_CODING:    ${{ steps.f.outputs.coding }}
+          F_DATASCI:   ${{ steps.f.outputs.datasci }}
+          F_PENTEST:   ${{ steps.f.outputs.pentest }}
+          F_TERMINAL:  ${{ steps.f.outputs.terminal }}
+          F_AVATARIUS: ${{ steps.f.outputs.avatarius }}
+          F_TROJANML:  ${{ steps.f.outputs.trojanml }}
+          F_MEMBERS:   ${{ steps.f.outputs.members }}
+          F_AGENTIC:   ${{ steps.f.outputs.agentic }}
+          F_SHARED:    ${{ steps.f.outputs.shared }}
         run: |
           set -euo pipefail
 
@@ -89,6 +101,10 @@ jobs:
           coding=$(dep "$F_CODING")
           datasci=$(dep "$F_DATASCI")
           pentest=$(dep "$F_PENTEST")
+          avatarius=$(dep "$F_AVATARIUS")
+          trojanml=$(dep "$F_TROJANML")
+          members=$(dep "$F_MEMBERS")
+          agentic=$(dep "$F_AGENTIC")
 
           # arr name=flag … → JSON array of the names whose flag is true (empties dropped)
           arr() {
@@ -99,8 +115,8 @@ jobs:
 
           {
             echo "roots=$(arr    base=$base terminal=$terminal)"
-            echo "variants=$(arr coding=$coding datasci=$datasci pentest=$pentest)"
-            echo "built=$(arr    base=$base terminal=$terminal coding=$coding datasci=$datasci pentest=$pentest)"
+            echo "variants=$(arr coding=$coding datasci=$datasci pentest=$pentest avatarius=$avatarius trojanml=$trojanml members=$members agentic=$agentic)"
+            echo "built=$(arr    base=$base terminal=$terminal coding=$coding datasci=$datasci pentest=$pentest avatarius=$avatarius trojanml=$trojanml members=$members agentic=$agentic)"
           } | tee -a "$GITHUB_OUTPUT"
 
   # ── 2) Roots (base, terminal): native per-arch build ─────────────────────────
