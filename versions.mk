@@ -12,3 +12,8 @@ DATASCI_VERSION  = 0.1.0
 PENTEST_VERSION  = 0.1.0
 # terminal is STANDALONE (FROM debian-slim, not base): console-only ttyd workspace.
 TERMINAL_VERSION = 0.1.0
+# llm-ctf task workspaces (FROM base)
+AVATARIUS_VERSION = 0.1.0
+TROJANML_VERSION  = 0.1.0
+MEMBERS_VERSION   = 0.1.0
+AGENTIC_VERSION   = 0.1.0

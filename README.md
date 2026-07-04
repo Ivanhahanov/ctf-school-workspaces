@@ -7,7 +7,7 @@ Browser-based Linux desktops (XFCE + noVNC) handed to each player as an isolated
 vpc/
   base/      XFCE + Firefox (default browser) + noVNC + competition start page
   coding/    base + OpenVSCode Server (VS Code, offline) + Python  — coding challenges
-  datasci/   base + Python data/ML + Jupyter + stego/pickle      — avatarius/members/trojanml
+  datasci/   base + Python data/ML + Jupyter                     — data/ML challenges
   pentest/   base + nmap / radare2 / pwntools                    — pwn/recon
   terminal/  STANDALONE console-only (ttyd, no desktop)          — text-only challenges
   Makefile
