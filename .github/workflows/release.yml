@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       roots:    ${{ steps.decide.outputs.roots }}     # subset of ["base","terminal"]
-      variants: ${{ steps.decide.outputs.variants }}  # subset of ["coding","datasci","pentest"]
+      variants: ${{ steps.decide.outputs.variants }}  # subset of ["coding","datasci","pentest","avatarius","trojanml","members","agentic"]
       built:    ${{ steps.decide.outputs.built }}      # union of the two (for signing)
     steps:
       - uses: actions/checkout@v4
@@ -66,12 +66,12 @@ jobs:
 
       - id: decide
         env:
-          F_BASE:     ${{ steps.f.outputs.base }}
-          F_CODING:   ${{ steps.f.outputs.coding }}
-          F_DATASCI:  ${{ steps.f.outputs.datasci }}
-          F_PENTEST:  ${{ steps.f.outputs.pentest }}
-          F_TERMINAL: ${{ steps.f.outputs.terminal }}
-          F_SHARED:   ${{ steps.f.outputs.shared }}
+          F_BASE:      ${{ steps.f.outputs.base }}
+          F_CODING:    ${{ steps.f.outputs.coding }}
+          F_DATASCI:   ${{ steps.f.outputs.datasci }}
+          F_PENTEST:   ${{ steps.f.outputs.pentest }}
+          F_TERMINAL:  ${{ steps.f.outputs.terminal }}
+          F_SHARED:    ${{ steps.f.outputs.shared }}
         run: |
           set -euo pipefail
 

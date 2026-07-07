@@ -13,7 +13,7 @@
 #
 #   make base                 # build the base desktop (XFCE + Firefox + noVNC)
 #   make coding               # base + OpenVSCode Server + Python
-#   make datasci              # base + Python data/ML + Jupyter + stego/pickle tools
+#   make datasci              # base + Python data/ML + Jupyter
 #   make pentest              # base + nmap/radare2/pwntools
 #   make all                  # base + every variant
 #   make deploy-local         # build all + `kind load` into the cluster (dev)
@@ -60,12 +60,12 @@ help: ## Show this help
 	@echo; $(MAKE) --no-print-directory images
 
 images: ## Print the fully-qualified image refs (pinned versions)
-	@echo "base    -> $(call img,base,$(BASE_VERSION))"
-	@echo "coding  -> $(call img,coding,$(CODING_VERSION))"
-	@echo "datasci -> $(call img,datasci,$(DATASCI_VERSION))"
-	@echo "dl      -> $(call img,dl,$(DL_VERSION))"
-	@echo "pentest -> $(call img,pentest,$(PENTEST_VERSION))"
-	@echo "terminal-> $(call img,terminal,$(TERMINAL_VERSION))"
+	@echo "base      -> $(call img,base,$(BASE_VERSION))"
+	@echo "coding    -> $(call img,coding,$(CODING_VERSION))"
+	@echo "datasci   -> $(call img,datasci,$(DATASCI_VERSION))"
+	@echo "dl        -> $(call img,dl,$(DL_VERSION))"
+	@echo "pentest   -> $(call img,pentest,$(PENTEST_VERSION))"
+	@echo "terminal  -> $(call img,terminal,$(TERMINAL_VERSION))"
 
 base: ## Build the base workspace image
 	$(BUILD) -t $(call img,base,$(BASE_VERSION)) -t $(call latest,base) base/
@@ -143,19 +143,19 @@ push: buildx-ensure ## Push multi-arch base + variants to the registry
 #
 # Per-image version + build-args, looked up by $(IMAGE). `=` (lazy) so ordering vs
 # OVSCODE_VERSION below doesn't matter.
-VERSION_base     = $(BASE_VERSION)
-VERSION_coding   = $(CODING_VERSION)
-VERSION_datasci  = $(DATASCI_VERSION)
-VERSION_dl       = $(DL_VERSION)
-VERSION_pentest  = $(PENTEST_VERSION)
-VERSION_terminal = $(TERMINAL_VERSION)
+VERSION_base      = $(BASE_VERSION)
+VERSION_coding    = $(CODING_VERSION)
+VERSION_datasci   = $(DATASCI_VERSION)
+VERSION_dl        = $(DL_VERSION)
+VERSION_pentest   = $(PENTEST_VERSION)
+VERSION_terminal  = $(TERMINAL_VERSION)
 
-BUILD_ARGS_base     =
-BUILD_ARGS_terminal =
-BUILD_ARGS_coding   = --build-arg BASE=$(call img,base,$(BASE_VERSION)) --build-arg OVSCODE_VERSION="$(OVSCODE_VERSION)"
-BUILD_ARGS_datasci  = --build-arg BASE=$(call img,base,$(BASE_VERSION))
-BUILD_ARGS_dl       = --build-arg BASE=$(call img,base,$(BASE_VERSION))
-BUILD_ARGS_pentest  = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_base      =
+BUILD_ARGS_terminal  =
+BUILD_ARGS_coding    = --build-arg BASE=$(call img,base,$(BASE_VERSION)) --build-arg OVSCODE_VERSION="$(OVSCODE_VERSION)"
+BUILD_ARGS_datasci   = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_dl        = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_pentest   = --build-arg BASE=$(call img,base,$(BASE_VERSION))
 
 # Arches merged into each multi-arch tag (must match the matrix in release.yml).
 CI_ARCHES ?= amd64 arm64
