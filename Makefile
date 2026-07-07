@@ -48,7 +48,7 @@ cachefrom = --cache-from type=registry,ref=$(REPO)-$(1):buildcache
 cacheto   = --cache-to   type=registry,ref=$(REPO)-$(1):buildcache,mode=max
 
 # base-derived variants (built --build-arg BASE=…)
-VARIANTS := coding datasci pentest
+VARIANTS := coding datasci dl pentest
 # standalone images (their own FROM, NOT built on base)
 STANDALONE := terminal
 
@@ -63,6 +63,7 @@ images: ## Print the fully-qualified image refs (pinned versions)
 	@echo "base    -> $(call img,base,$(BASE_VERSION))"
 	@echo "coding  -> $(call img,coding,$(CODING_VERSION))"
 	@echo "datasci -> $(call img,datasci,$(DATASCI_VERSION))"
+	@echo "dl      -> $(call img,dl,$(DL_VERSION))"
 	@echo "pentest -> $(call img,pentest,$(PENTEST_VERSION))"
 	@echo "terminal-> $(call img,terminal,$(TERMINAL_VERSION))"
 
@@ -78,6 +79,10 @@ datasci: base ## Build the data-science image
 	$(BUILD) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
 	  -t $(call img,datasci,$(DATASCI_VERSION)) -t $(call latest,datasci) datasci/
 
+dl: base ## Build the deep-learning image (PyTorch + TensorFlow CPU + Jupyter)
+	$(BUILD) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
+	  -t $(call img,dl,$(DL_VERSION)) -t $(call latest,dl) dl/
+
 pentest: base ## Build the pentest image
 	$(BUILD) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
 	  -t $(call img,pentest,$(PENTEST_VERSION)) -t $(call latest,pentest) pentest/
@@ -91,6 +96,7 @@ load: ## kind-load the pinned base + all variants into the cluster
 	@kind load docker-image "$(call img,base,$(BASE_VERSION))"       --name "$(KIND_CLUSTER)"
 	@kind load docker-image "$(call img,coding,$(CODING_VERSION))"   --name "$(KIND_CLUSTER)"
 	@kind load docker-image "$(call img,datasci,$(DATASCI_VERSION))" --name "$(KIND_CLUSTER)"
+	@kind load docker-image "$(call img,dl,$(DL_VERSION))"           --name "$(KIND_CLUSTER)"
 	@kind load docker-image "$(call img,pentest,$(PENTEST_VERSION))" --name "$(KIND_CLUSTER)"
 	@kind load docker-image "$(call img,terminal,$(TERMINAL_VERSION))" --name "$(KIND_CLUSTER)"
 
@@ -116,6 +122,9 @@ push: buildx-ensure ## Push multi-arch base + variants to the registry
 	  $(call cachefrom,datasci) $(call cacheto,datasci) \
 	  -t $(call img,datasci,$(DATASCI_VERSION)) -t $(call latest,datasci) --push datasci/
 	docker buildx build --platform $(PLATFORMS) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
+	  $(call cachefrom,dl) $(call cacheto,dl) \
+	  -t $(call img,dl,$(DL_VERSION)) -t $(call latest,dl) --push dl/
+	docker buildx build --platform $(PLATFORMS) --build-arg BASE=$(call img,base,$(BASE_VERSION)) \
 	  $(call cachefrom,pentest) $(call cacheto,pentest) \
 	  -t $(call img,pentest,$(PENTEST_VERSION)) -t $(call latest,pentest) --push pentest/
 	docker buildx build --platform $(PLATFORMS) \
@@ -137,6 +146,7 @@ push: buildx-ensure ## Push multi-arch base + variants to the registry
 VERSION_base     = $(BASE_VERSION)
 VERSION_coding   = $(CODING_VERSION)
 VERSION_datasci  = $(DATASCI_VERSION)
+VERSION_dl       = $(DL_VERSION)
 VERSION_pentest  = $(PENTEST_VERSION)
 VERSION_terminal = $(TERMINAL_VERSION)
 
@@ -144,6 +154,7 @@ BUILD_ARGS_base     =
 BUILD_ARGS_terminal =
 BUILD_ARGS_coding   = --build-arg BASE=$(call img,base,$(BASE_VERSION)) --build-arg OVSCODE_VERSION="$(OVSCODE_VERSION)"
 BUILD_ARGS_datasci  = --build-arg BASE=$(call img,base,$(BASE_VERSION))
+BUILD_ARGS_dl       = --build-arg BASE=$(call img,base,$(BASE_VERSION))
 BUILD_ARGS_pentest  = --build-arg BASE=$(call img,base,$(BASE_VERSION))
 
 # Arches merged into each multi-arch tag (must match the matrix in release.yml).

@@ -1,0 +1,4 @@
+# Local-only offline-build artifacts (see Dockerfile.local). The canonical build is
+# the online Dockerfile; CI builds that. Don't commit the ~566 MB wheelhouse.
+wheelhouse/
+Dockerfile.local
