@@ -1,4 +1,4 @@
-ARG BASE=explabs/ctf-school-desktop-base:0.1.0
+ARG BASE=explabs/ctf-school-desktop-base:latest
 FROM ${BASE}
 
 LABEL org.opencontainers.image.title="ctf-school/desktop/datasci" \
