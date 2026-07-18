@@ -14,7 +14,15 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl wget netcat-openbsd file xxd vim tmux less procps \
-    && rm -rf /var/lib/apt/lists/*
+    locales \
+    && rm -rf /var/lib/apt/lists*
+
+# Russian locale — ttyd/xterm.js renders Cyrillic from the browser side, but the
+# PTY and shell tools need ru_RU.UTF-8 to handle Cyrillic text correctly.
+RUN sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && \
+    sed -i 's/^# *\(ru_RU.UTF-8\)/\1/' /etc/locale.gen && \
+    locale-gen
+ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
 # ttyd = the browser terminal (xterm.js in the page, PTY on the backend). It is NOT
 # packaged in bookworm, so we fetch the official self-contained static binary (per

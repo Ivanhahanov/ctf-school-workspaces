@@ -21,9 +21,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     firefox-esr \
     # Theme
     arc-theme papirus-icon-theme fonts-hack \
+    # Cyrillic fonts (fonts-hack covers Latin only; DejaVu has full Cyrillic)
+    fonts-dejavu-core \
+    # Locale support (needed for ru_RU.UTF-8 generation below)
+    locales \
     # Basic terminal utils (no dev tools — add via child images)
     curl wget netcat-openbsd file xxd vim tmux less procps \
     && rm -rf /var/lib/apt/lists/*
+
+# Generate Russian + English locales. LANG stays en_US.UTF-8 (tool output remains
+# English), but ru_RU.UTF-8 is available for apps and the desktop can display
+# Cyrillic correctly. The keyboard layout (us + ru, Alt+Shift toggle) is wired in
+# skel/.config/xfce4/xfconf/xfce-perchannel-xml/keyboard-layout.xml.
+RUN sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen && \
+    sed -i 's/^# *\(ru_RU.UTF-8\)/\1/' /etc/locale.gen && \
+    locale-gen
+ENV LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
 # Firefox is THE browser: make it the system default so links never prompt.
 RUN update-alternatives --set x-www-browser /usr/bin/firefox-esr && \
