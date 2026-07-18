@@ -1,4 +1,4 @@
-# Build + push the workspace desktop images (base + coding/datasci/pentest/terminal),
+# Build + push the workspace desktop images (base + coding/datasci/dl/pentest/terminal),
 # multi-arch, and cosign-sign them — OPTIMIZED for speed:
 #
 #   1. PATH FILTER (job `plan`) → only rebuild images whose files changed. A commit to
@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       roots:    ${{ steps.decide.outputs.roots }}     # subset of ["base","terminal"]
-      variants: ${{ steps.decide.outputs.variants }}  # subset of ["coding","datasci","pentest","avatarius","trojanml","members","agentic"]
+      variants: ${{ steps.decide.outputs.variants }}  # subset of ["coding","datasci","dl","pentest","avatarius","trojanml","members","agentic"]
       built:    ${{ steps.decide.outputs.built }}      # union of the two (for signing)
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +55,8 @@ jobs:
               - 'coding/**'
             datasci:
               - 'datasci/**'
+            dl:
+              - 'dl/**'
             pentest:
               - 'pentest/**'
             terminal:
@@ -69,6 +71,7 @@ jobs:
           F_BASE:      ${{ steps.f.outputs.base }}
           F_CODING:    ${{ steps.f.outputs.coding }}
           F_DATASCI:   ${{ steps.f.outputs.datasci }}
+          F_DL:        ${{ steps.f.outputs.dl }}
           F_PENTEST:   ${{ steps.f.outputs.pentest }}
           F_TERMINAL:  ${{ steps.f.outputs.terminal }}
           F_SHARED:    ${{ steps.f.outputs.shared }}
@@ -88,6 +91,7 @@ jobs:
           dep() { { [ "$force" = true ] || [ "$base" = true ] || [ "$1" = "true" ]; } && echo true || echo false; }
           coding=$(dep "$F_CODING")
           datasci=$(dep "$F_DATASCI")
+          dl=$(dep "$F_DL")
           pentest=$(dep "$F_PENTEST")
 
           # arr name=flag … → JSON array of the names whose flag is true (empties dropped)
@@ -99,8 +103,8 @@ jobs:
 
           {
             echo "roots=$(arr    base=$base terminal=$terminal)"
-            echo "variants=$(arr coding=$coding datasci=$datasci pentest=$pentest)"
-            echo "built=$(arr    base=$base terminal=$terminal coding=$coding datasci=$datasci pentest=$pentest)"
+            echo "variants=$(arr coding=$coding datasci=$datasci dl=$dl pentest=$pentest)"
+            echo "built=$(arr    base=$base terminal=$terminal coding=$coding datasci=$datasci dl=$dl pentest=$pentest)"
           } | tee -a "$GITHUB_OUTPUT"
 
   # ── 2) Roots (base, terminal): native per-arch build ─────────────────────────
