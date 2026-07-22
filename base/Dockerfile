@@ -15,6 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xauth x11-xserver-utils dbus-x11 \
     # Desktop
     xfce4 xfce4-terminal thunar \
+    # Visible us/ru layout indicator + click-to-switch (panel-wired in skel/)
+    # — the Alt+Shift toggle alone is an invisible shortcut that some client
+    # keyboards/browsers (notably macOS, where Alt = Option) don't fire reliably.
+    xfce4-xkb-plugin \
     # VNC + web client (websockify requires python3-minimal)
     tigervnc-standalone-server novnc websockify \
     # Browser
@@ -26,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Locale support (needed for ru_RU.UTF-8 generation below)
     locales \
     # Basic terminal utils (no dev tools — add via child images)
-    curl wget netcat-openbsd file xxd vim tmux less procps \
+    curl wget netcat-openbsd file xxd vim nano tmux less procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Generate Russian + English locales. LANG stays en_US.UTF-8 (tool output remains

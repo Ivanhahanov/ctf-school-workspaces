@@ -15,6 +15,7 @@ if ! curl -fsS http://127.0.0.1:3000/ >/dev/null 2>&1; then
       --host 127.0.0.1 --port 3000 \
       --without-connection-token \
       --disable-telemetry \
+      --extensions-dir "${HOME}/.openvscode-server/extensions" \
       >/tmp/openvscode.log 2>&1 & )
   for _ in $(seq 1 40); do
     curl -fsS http://127.0.0.1:3000/ >/dev/null 2>&1 && break
